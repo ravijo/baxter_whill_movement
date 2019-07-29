@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# mrd_player.py: python script to load mrd model and move baxter robot
+# mrd_player.py: python script to load mrd model. It move Baxter robot and Whill electric wheelchair
 # Author: Ravi Joshi
 # Date: 2019/07/28
 
@@ -14,6 +14,10 @@ from matplotlib import cm
 import matplotlib.pyplot as plt
 from baxter_interface.limb import Limb
 from baxter_core_msgs.msg import JointCommand
+from ros_whillpy.srv import Move, MoveRequest, MoveResponse
+from ros_whillpy.srv import Power, PowerRequest, PowerResponse
+from ros_whillpy.srv import Connect, ConnectRequest, ConnectResponse
+
 
 # please note that the order of joint angles is different from usual order
 LEFT_NAMES  = [ 'left_e0',  'left_e1',  'left_s0',  'left_s1',  'left_w0',  'left_w1',  'left_w2']
@@ -57,10 +61,10 @@ class ModelPlayer():
         self.mrd_X = mrd_X[:, [self.dim1, self.dim2]]
 
         title = 'Baxter Whill Movement using MRD'
-        self.fig, (self.ax1, self.ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10, 4))
+        fig, (self.ax1, self.ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10, 4))
         self.plot_latent_space()
         self.plot_whill_movement()
-        self.fig.canvas.set_window_title(title)
+        fig.canvas.set_window_title(title)
         self.text_handle = self.ax1.text(0.8, 0.1, 'Play Mode: OFF', horizontalalignment='center', verticalalignment='center', transform=self.ax1.transAxes, bbox={'facecolor':'green', 'alpha':0.5, 'pad':6})
 
         self.counter = 0
@@ -68,24 +72,58 @@ class ModelPlayer():
         self.latent_cursor_handle = None
 
         if manual:
+            fig.suptitle('Predicted Whill movements are not sent to the Whill controller', fontstyle='italic', color='red')
             # variables for mouse cursor based motion
             self.mouse_xy = np.zeros((1, 2))
             self.start_motion = False
-            self.pointer_color = 'red'
+            self.cursor_color = 'red'
 
             # connect the cursor class
-            plt.connect('button_press_event',self.mouse_click)
-            plt.connect('motion_notify_event', self.mouse_move)
+            fig.canvas.mpl_connect('button_press_event',self.mouse_click)
+            fig.canvas.mpl_connect('motion_notify_event', self.mouse_move)
+            fig.subplots_adjust(top=0.80)
         else:
-            self.pointer_color = 'green'
+            self.whill_move = None
+            self.init_ros_whillpy()
+            self.cursor_color = 'green'
             self.text_handle.set_text('Automatic Mode: ON')
 
             # create a timer to follow the mean trajectory
             self.ros_timer = rospy.Timer(rospy.Duration(1 / timer_freq), self.timer_callback)
 
         # adjust the space at the bottom
-        self.fig.subplots_adjust(bottom=0.15)
+        fig.subplots_adjust(bottom=0.15)
+
+
+    def spin(self):
         plt.show()
+
+
+    def init_ros_whillpy(self):
+        # make sure that services are available
+        connect_service_name = '/ros_whillpy/connect'
+        power_service_name = '/ros_whillpy/power'
+        move_service_name = '/ros_whillpy/move'
+
+        rospy.loginfo('Waiting for ros_whillpy services...')
+        rospy.wait_for_service(connect_service_name)
+        rospy.wait_for_service(power_service_name)
+        rospy.wait_for_service(move_service_name)
+
+        rospy.loginfo('ros_whillpy services found successfully.')
+
+        try:
+            connect = rospy.ServiceProxy(connect_service_name, Connect, persistent=False)
+            response = connect('/dev/ttyUSB0')
+            rospy.loginfo('response from %s service %d message %s' % (connect_service_name, response.success, response.message))
+
+            power = rospy.ServiceProxy(power_service_name, Power, persistent=False)
+            response = power(True)
+            rospy.loginfo('response from %s service %d message %s' % (power_service_name, response.success, response.message))
+
+            self.whill_move = rospy.ServiceProxy(move_service_name, Move, persistent=True)
+        except rospy.ServiceException as e:
+            rospy.logerr('Service call failed %s' % e)
 
 
     def mouse_click(self, event):
@@ -103,11 +141,23 @@ class ModelPlayer():
         self.latent_cursor_handle.axes.figure.canvas.draw_idle()
 
 
+    def move_whill(self, front_move):
+        if self.whill_move is None:
+            rospy.logerr('It seems that move service is not initialized. Ignoring the move command...')
+            return
+
+        try:
+            response = self.whill_move(front_move, 0)
+            rospy.loginfo('response from ros_whillpy move service: %s' % response.message)
+        except rospy.ServiceException as e:
+            rospy.logerr('ros_whillpy move service call failed %s' % e)
+
+
     def update_whill_plot(self, time, whill_movement):
-        self.ax2.scatter(time, whill_movement, marker='o', s=CURSOR_SIZE, c='green', alpha=0.3)
+        self.ax2.scatter(time, whill_movement, marker='o', s=CURSOR_SIZE, color='green', alpha=0.3)
         if self.whill_move_handle is None:
             # initialize the plot handle if it is null
-            self.whill_move_handle, = self.ax2.plot(time, whill_movement, c='green', linewidth=2, alpha=0.5)
+            self.whill_move_handle, = self.ax2.plot(time, whill_movement, color='green', linewidth=2, alpha=0.5)
         else:
             # update the cursor
             new_time = np.concatenate((self.whill_move_handle.get_xdata(), np.array((time), ndmin=1)))
@@ -120,7 +170,7 @@ class ModelPlayer():
 
     def update_latent_cursor(self, cursor):
         if self.latent_cursor_handle is None:
-            self.latent_cursor_handle = self.ax1.scatter(cursor[0, 0], cursor[0, 1], marker='o', s=CURSOR_SIZE, c=self.pointer_color, alpha=0.5)
+            self.latent_cursor_handle = self.ax1.scatter(cursor[0, 0], cursor[0, 1], marker='o', s=CURSOR_SIZE, color=self.cursor_color, alpha=0.5)
         else:
             new_offset = np.concatenate((self.latent_cursor_handle.get_offsets(), cursor))
             self.latent_cursor_handle.set_offsets(new_offset)
@@ -132,9 +182,8 @@ class ModelPlayer():
         if not event.inaxes:
             return
 
-        # get the mean value of the current X
+        # get the current mouse cursor position
         cursor = np.array((event.xdata, event.ydata), ndmin=2)
-
         if np.linalg.norm(cursor - self.mouse_xy) < 0.05:
             return
 
@@ -188,6 +237,8 @@ class ModelPlayer():
         # whill movement predicted from joint angles
         whill_movement = self.get_whill_movement(joint_angles)
         self.update_whill_plot(time, whill_movement)
+
+        self.move_whill(whill_movement)
         self.publish_joint_angles(joint_angles)
 
 
@@ -200,8 +251,8 @@ class ModelPlayer():
         y_min -= 0.1 * y_r
         y_max += 0.1 * y_r
 
-        #self.ax1.scatter(self.mrd_X[:, 0], self.mrd_X[:, 1], marker='o', s=50, c='b', alpha=0.8, label='Train')
-        self.ax1.plot(self.mrd_X[:, 0], self.mrd_X[:, 1], c='blue', linewidth=2, alpha=0.8, label='Mean')
+        #self.ax1.scatter(self.mrd_X[:, 0], self.mrd_X[:, 1], marker='o', s=50, color='b', alpha=0.8, label='Train')
+        self.ax1.plot(self.mrd_X[:, 0], self.mrd_X[:, 1], color='blue', linewidth=2, alpha=0.8, label='Mean')
 
         if plot_variance:
             def get_variance(x):
@@ -218,7 +269,7 @@ class ModelPlayer():
 
         if plot_inducing:
             Z = self.mrd_model.Z
-            self.ax1.scatter(Z[:, self.dim1], Z[:, self.dim2], c='white', s=CURSOR_SIZE, marker='^', alpha=0.6)
+            self.ax1.scatter(Z[:, self.dim1], Z[:, self.dim2], color='white', s=CURSOR_SIZE, marker='^', alpha=0.6)
 
         self.ax1.set_xlim((x_min, x_max))
         self.ax1.set_ylim((y_min, y_max))
@@ -226,8 +277,8 @@ class ModelPlayer():
         self.ax1.grid(False)
         self.ax1.set_aspect('auto')
         self.ax1.legend(loc='upper right')
-        self.ax1.set_xlabel('Latent Dimension %i' % (self.dim1 + 1))
-        self.ax1.set_ylabel('Latent Dimension %i' % (self.dim2 + 1))
+        self.ax1.set_xlabel('Latent Dimension %i' % self.dim1)
+        self.ax1.set_ylabel('Latent Dimension %i' % self.dim2)
         self.ax1.title.set_text('Latent Space Visualization')
 
 
@@ -235,7 +286,7 @@ class ModelPlayer():
         self.ax2.grid(True)
         self.ax2.set_ylim((-1, MAX_WHILL_MOVE))
         self.ax2.set_xlabel('Timestamp')
-        self.ax2.set_ylabel('Whill Movement')
+        self.ax2.set_ylabel('Predicted Whill Movement')
         self.ax2.title.set_text('Whill Movement Visualization')
 
 
@@ -267,11 +318,16 @@ def main():
 
     left_arm  = Limb('left')
     right_arm = Limb('right')
+
+    rospy.loginfo('Moving both the arms to home position. Please wait...')
     left_arm.move_to_joint_positions(dict(zip(LEFT_NAMES, LEFT_HOME_POS)))
     right_arm.move_to_joint_positions(dict(zip(RIGHT_NAMES, RIGHT_HOME_POS)))
 
+    rospy.loginfo('Both the arms are moved to home position successfully.')
+
     try:
         player = ModelPlayer(model_file, max_points, timer_freq, dim1, dim2, resolution, manual)
+        player.spin()
     except rospy.ROSInterruptException:
         pass
 

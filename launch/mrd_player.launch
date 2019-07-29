@@ -6,7 +6,7 @@
   -->
   <arg name="model" default="$(find baxter_whill_movement)/files/mrd_model.pkl" doc="Name of the MRD model file"/>
   <arg name="points" default="200" doc="Maximum number of points to visualize" />
-  <arg name="freq" default="10.0" doc="Frequnecy for the movement of the cursor" />
+  <arg name="freq" default="5.0" doc="Frequnecy for the movement of the cursor" />
   <arg name="dim1" default="0" doc="The first dimension to visualize" />
   <arg name="dim2" default="1" doc="The second dimension to visualize" />
   <arg name="resolution" default="50" doc="Resolution of the latent space" />
