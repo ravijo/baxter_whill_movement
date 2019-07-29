@@ -56,8 +56,6 @@ class ModelPlayer():
 
         self.mrd_X = mrd_X[:, [self.dim1, self.dim2]]
 
-        #self.test_data = np.empty((0, 2))
-
         title = 'Baxter Whill Movement using MRD'
         self.fig, (self.ax1, self.ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10, 4))
         self.plot_latent_space()
@@ -101,7 +99,6 @@ class ModelPlayer():
         else:
             self.text_handle.set_text('Play Mode: OFF')
             self.text_handle.set_bbox({'facecolor':'green', 'alpha':0.5, 'pad':10})
-            #self.test_data = np.empty((0, 2))
 
         self.latent_cursor_handle.axes.figure.canvas.draw_idle()
 
@@ -205,8 +202,6 @@ class ModelPlayer():
 
         #self.ax1.scatter(self.mrd_X[:, 0], self.mrd_X[:, 1], marker='o', s=50, c='b', alpha=0.8, label='Train')
         self.ax1.plot(self.mrd_X[:, 0], self.mrd_X[:, 1], c='blue', linewidth=2, alpha=0.8, label='Mean')
-        #self.test_handle = self.ax1.scatter(self.test_data[:, 0], self.test_data[:, 1], marker='o', s=CURSOR_SIZE, c='red', alpha=0.5)
-        #self.test_handle = self.ax1.scatter(0, 0, marker='o', s=CURSOR_SIZE, c='red', alpha=0.5)
 
         if plot_variance:
             def get_variance(x):
