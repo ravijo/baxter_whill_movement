@@ -1,0 +1,13 @@
+<package>
+  <name>baxter_whill_movement</name>
+  <version>0.0.1</version>
+
+  <description>This package is for Baxter and Whill cooperative movement to perform robotic clothing assistance.</description>
+  <author email="ravi2008joshi@gmail.com">Ravi Joshi</author>
+  <maintainer email="ravi2008joshi@gmail.com">Ravi Joshi</maintainer>
+
+  <license>MIT</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roslaunch</build_depend>
+  <run_depend>rviz</run_depend>
+</package>

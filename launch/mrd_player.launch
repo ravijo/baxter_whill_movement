@@ -1,0 +1,24 @@
+<launch>
+  <!--
+  mrd_player.launch
+  Author: Ravi Joshi
+  Date: 2019/07/28
+  -->
+  <arg name="model" default="$(find baxter_whill_movement)/files/mrd_model.pkl" doc="Name of the MRD model file"/>
+  <arg name="points" default="200" doc="Maximum number of points to visualize" />
+  <arg name="freq" default="10.0" doc="Frequnecy for the movement of the cursor" />
+  <arg name="dim1" default="0" doc="The first dimension to visualize" />
+  <arg name="dim2" default="1" doc="The second dimension to visualize" />
+  <arg name="resolution" default="50" doc="Resolution of the latent space" />
+  <arg name="manual" default="false" doc="Flag to enable mouse cursor based control of the latent space" />
+
+  <node name="mrd_player" pkg="baxter_whill_movement" type="mrd_player.py" output="screen">
+    <param name="model" value="$(arg model)"/>
+    <param name="points" value="$(arg points)"/>
+    <param name="freq" value="$(arg freq)"/>
+    <param name="dim1" value="$(arg dim1)"/>
+    <param name="dim2" value="$(arg dim2)"/>
+    <param name="resolution" value="$(arg resolution)"/>
+    <param name="manual" value="$(arg manual)"/>
+  </node>
+</launch>
